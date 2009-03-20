@@ -335,14 +335,14 @@ int check_file_perms(const char *path)
 
 char *get_cgi_filename() /* and fixup environment */
 {
-	int buflen = 1, docrootlen;
+	int buflen = 1, docrootlen, scriptnamelen;
 	char *buf = NULL;
 	char *docroot, *scriptname, *p;
 
-	int rf_len;
+	int len;
 	char *pathinfo = NULL;
-
-	if ((p = getenv("DOCUMENT_ROOT"))) {
+	
+        if ((p = getenv("DOCUMENT_ROOT"))) {
 		docroot = p;
 		buflen += docrootlen = strlen(p);
 	} else {
@@ -350,7 +350,7 @@ char *get_cgi_filename() /* and fixup environment */
 	}
 
 	if ((p = getenv("SCRIPT_NAME"))) {
-		buflen += strlen(p);
+		buflen += scriptnamelen = strlen(p);
 		scriptname = p;
 	} else {
 		goto err;
@@ -361,23 +361,22 @@ char *get_cgi_filename() /* and fixup environment */
 
 	strcpy(buf, docroot);
 	strcpy(buf + docrootlen, scriptname);
-	pathinfo = strdup(buf);
-	if (!pathinfo) {
-		goto err;
-	}
 
 	while(1) {
 		switch(check_file_perms(buf)) {
 			case -EACCES:
 				goto err;
 			case 0:
-				rf_len = strlen(buf);
-				if (rf_len < buflen - 1) {
-					setenv("PATH_INFO", pathinfo + rf_len, 1);
-					setenv("SCRIPT_NAME", buf + docrootlen, 1);
-				} else {
-					unsetenv("PATH_INFO");
-				}
+                                /* TODO sometimes simply use PATH_INFO AS-IS */
+                                if ( (p = getenv("SCRIPT_FILENAME"))  && (int)strlen(p) > (docrootlen + scriptnamelen) ) {
+                                        pathinfo = strdup( p + docrootlen + scriptnamelen );    /* for lighttpd with broken-scriptfilename enabled */
+                                } else if( (p = getenv("REQUEST_URI")) && strlen(p)>0 ) {       /* for nginx */
+                                        len = strlen( getenv("QUERY_STRING") );
+                                        pathinfo = strndup( p + strlen(scriptname),  strlen(p) - scriptnamelen - len - ((len==0)?0:1) );
+                                } else {
+                                        goto err;
+                                }
+				setenv("PATH_INFO", pathinfo, 1);
 				free(pathinfo);
 				return buf;
 			default:
