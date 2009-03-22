@@ -434,12 +434,11 @@ static void inherit_environment()
 
 static void error_403(const char *reason, const char *filename)
 {
-	FCGI_fputs("Status: 403 Forbidden\nContent-type: text/plain\n\n403", FCGI_stdout);
+	fprintf(stdout,"Status: 403 Forbidden\nContent-type: text/plain\n\n<b>403</b> see server logs ...");
 	if (filename) {
-		FCGI_fprintf(FCGI_stderr, "%s (%s)\n", reason, filename);
+		fprintf(stderr, "%s (%s)\n", reason, filename);
 	} else {
-		FCGI_fputs(reason, FCGI_stderr);
-		FCGI_fputc('\n', FCGI_stderr);
+		fprintf(stderr,"%s\n",reason);
 	}
 	exit(99);
 }
@@ -466,6 +465,15 @@ static void handle_fcgi_request()
 		case 0: /* child */
 			filename = get_cgi_filename();
 			inherit_environment();
+
+			close(pipe_in[1]);
+			close(pipe_out[0]);
+			close(pipe_err[0]);
+
+			dup2(pipe_in[0], 0);
+			dup2(pipe_out[1], 1);
+			dup2(pipe_err[1], 2);
+
 			if (!filename)
 				error_403("Cannot get script name, is DOCUMENT_ROOT and SCRIPT_NAME set and is the script executable?", NULL);
 
@@ -478,14 +486,6 @@ static void handle_fcgi_request()
 				error_403("Cannot chdir to script directory", filename);
 
 			*last_slash = '/';
-
-			close(pipe_in[1]);
-			close(pipe_out[0]);
-			close(pipe_err[0]);
-
-			dup2(pipe_in[0], 0);
-			dup2(pipe_out[1], 1);
-			dup2(pipe_err[1], 2);
 
 			signal(SIGCHLD, SIG_DFL);
 			signal(SIGPIPE, SIG_DFL);
