@@ -19,6 +19,11 @@
 extern char **environ;
 static char * const * inherited_environ;
 
+static struct fcgiwrap_cfg_st {
+	int nchildren;
+	int fix_path_info;
+} fcgiwrap_cfg;
+
 static const char * blacklisted_env_vars[] = {
 	"AUTH_TYPE",
 	"CONTENT_LENGTH",
@@ -367,7 +372,7 @@ char *get_cgi_filename() /* and fixup environment */
 			case -EACCES:
 				goto err;
 			case 0:
-                                /* TODO sometimes simply use PATH_INFO AS-IS */
+                                if (fcgiwrap_cfg.fix_path_info==0) { return buf; }
                                 if ( (p = getenv("SCRIPT_FILENAME"))  && (int)strlen(p) > (docrootlen + scriptnamelen) ) {
                                         pathinfo = strdup( p + docrootlen + scriptnamelen );    /* for lighttpd with broken-scriptfilename enabled */
                                 } else if( (p = getenv("REQUEST_URI")) && strlen(p)>0 ) {       /* for nginx */
@@ -555,18 +560,18 @@ static void sigchld_handler(int dummy)
 	}
 }
 
-static void prefork(int nchildren)
+static void prefork()
 {
 	int startup = 1;
 
-	if (nchildren == 0) {
+	if (fcgiwrap_cfg.nchildren == 0) {
 		return;
 	}
 
 	signal(SIGCHLD, sigchld_handler);
 
 	while (1) {
-		while (nrunning < nchildren) {
+		while (nrunning < fcgiwrap_cfg.nchildren) {
 			pid_t pid = fork();
 			if (pid == 0) {
 				return;
@@ -587,15 +592,30 @@ static void prefork(int nchildren)
 	}
 }
 
+static int usage()
+{
+        fprintf(stdout,"fcgiwrap [c:f]\
+\n\t-c n : number of child process to launch [defaults to 0]\
+\n\t-f   : fix PATH_INFO using SCRIPT_FILENAME or REQUEST_URI\
+\n\t-h   : shows this help screen\n\
+");
+        return EXIT_FAILURE;
+}
+
 int main(int argc, char **argv)
 {
-	int nchildren = 0;
 	int c;
 
-	while ((c = getopt(argc, argv, "c:")) != -1) {
+        memset( &fcgiwrap_cfg, 0, sizeof(struct fcgiwrap_cfg_st));
+	while ((c = getopt(argc, argv, "c:fh")) != -1) {
 		switch (c) {
+			case 'h':
+				exit( usage() );
+			case 'f':
+				fcgiwrap_cfg.fix_path_info = 1;
+				break;
 			case 'c':
-				nchildren = atoi(optarg);
+				fcgiwrap_cfg.nchildren = atoi(optarg);
 				break;
 			case '?':
 				if (optopt == 'c')
@@ -612,7 +632,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	prefork(nchildren);
+	prefork();
 	fcgiwrap_main();
-	return 0;
+	return EXIT_SUCCESS;
 }
