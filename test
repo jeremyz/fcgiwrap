@@ -1,0 +1,28 @@
+#! /bin/sh
+
+BIN="./fcgiwrap"
+
+touch _empty
+
+echo -n "fix PATH_INFO using REQUEST_URI & QUERY_STRING => "
+DOCUMENT_ROOT=`pwd` \
+SCRIPT_NAME="/cgi.cgi" \
+REQUEST_URI="/cgi.cgi/MY/PATH/INFO?arg1=val1;arg2=val2" \
+QUERY_STRING="arg1=val1;arg2=val2" \
+$BIN -f < _empty | gawk ' /PATH_INFO/ { if($3 ~"/MY/PATH/INFO"){exit 0;} exit 1;}' && echo "SUCCESS" || echo "FAILURE"
+
+
+echo -n "fix PATH_INFO using SCRIPT_FILENAME => "
+DOCUMENT_ROOT=`pwd` \
+SCRIPT_NAME="/cgi.cgi" \
+SCRIPT_FILENAME="`pwd`/cgi.cgi/MY/PATH/INFO" \
+$BIN -f < _empty | gawk ' /PATH_INFO/ { if($3 ~"/MY/PATH/INFO"){exit 0;} exit 1;}' && echo "SUCCESS" || echo "FAILURE"
+
+echo -n "fix PATH_INFO using SCRIPT_FILENAME => "
+DOCUMENT_ROOT=`pwd` \
+SCRIPT_NAME="/cgi.cgi" \
+SCRIPT_FILENAME="`pwd`/cgi.cgi/MY/PATH/INFO" \
+PATH_INFO="/MY/PATH/INFO" \
+$BIN < _empty | gawk ' /PATH_INFO/ { if($3 ~"/MY/PATH/INFO"){exit 0;} exit 1;}' && echo "SUCCESS" || echo "FAILURE"
+
+rm _empty
