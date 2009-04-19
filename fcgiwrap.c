@@ -559,7 +559,7 @@ static void prefork(int nchildren)
 {
 	int startup = 1;
 
-	if (nchildren == 1) {
+	if (nchildren == 0) {
 		return;
 	}
 
@@ -589,7 +589,7 @@ static void prefork(int nchildren)
 
 int main(int argc, char **argv)
 {
-	int nchildren = 1;
+	int nchildren = 0;
 	int c;
 
 	while ((c = getopt(argc, argv, "c:")) != -1) {
