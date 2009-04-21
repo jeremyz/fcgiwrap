@@ -543,59 +543,9 @@ static void fcgiwrap_main(void)
 	}
 }
 
-static volatile sig_atomic_t nrunning;
-
-static void sigchld_handler(int dummy)
-{
-	int status;
-
-	while ((dummy = waitpid(-1, &status, WNOHANG)) != -1) {
-		/* sanity check */
-		if (nrunning > 0)
-			nrunning--;
-
-		/* we _should_ print something about the exit code
-		 * but the sighandler context is _very_ bad for this
-		 */
-	}
-}
-
-static void prefork()
-{
-	int startup = 1;
-
-	if (fcgiwrap_cfg.nchildren == 0) {
-		return;
-	}
-
-	signal(SIGCHLD, sigchld_handler);
-
-	while (1) {
-		while (nrunning < fcgiwrap_cfg.nchildren) {
-			pid_t pid = fork();
-			if (pid == 0) {
-				return;
-			} else if (pid != -1) {
-				nrunning++;
-			} else {
-				if (startup) {
-					fprintf(stderr, "Failed to prefork: %s\n", strerror(errno));
-					exit(1);
-				} else {
-					fprintf(stderr, "Failed to fork: %s\n", strerror(errno));
-					break;
-				}
-			}
-		}
-		startup = 0;
-		pause();
-	}
-}
-
 static int usage()
 {
-        fprintf(stdout,"fcgiwrap [c:f]\
-\n\t-c n : number of child process to launch [defaults to 0]\
+        fprintf(stdout,"fcgiwrap [hf]\
 \n\t-f   : fix PATH_INFO using SCRIPT_FILENAME or REQUEST_URI\
 \n\t-h   : shows this help screen\n\
 ");
@@ -614,9 +564,6 @@ int main(int argc, char **argv)
 			case 'f':
 				fcgiwrap_cfg.fix_path_info = 1;
 				break;
-			case 'c':
-				fcgiwrap_cfg.nchildren = atoi(optarg);
-				break;
 			case '?':
 				if (optopt == 'c')
 					fprintf(stderr, "Option -%c requires an argument.\n", optopt);
@@ -631,8 +578,6 @@ int main(int argc, char **argv)
 				abort();
 		}
 	}
-
-	prefork();
 	fcgiwrap_main();
 	return EXIT_SUCCESS;
 }
